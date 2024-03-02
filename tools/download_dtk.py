@@ -2,14 +2,13 @@
 
 import argparse
 import io
-import os
 import platform
 import shutil
 import stat
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Callable, Dict, cast
+from typing import Callable, Dict
 
 
 def dtk_url(tag: str) -> str:
@@ -28,25 +27,8 @@ def dtk_url(tag: str) -> str:
     return f"{repo}/releases/download/{tag}/dtk-{system}-{arch}{suffix}"
 
 
-# def sjiswrap_url(tag: str) -> str:
-#     repo = "https://github.com/encounter/sjiswrap"
-#     return f"{repo}/releases/download/{tag}/sjiswrap-windows-x86.exe"
-
-
-# def wibo_url(tag: str) -> str:
-#     repo = "https://github.com/decompals/wibo"
-#     return f"{repo}/releases/download/{tag}/wibo"
-
-
-# def compilers_url(tag: str) -> str:
-#     return f"https://files.decomp.dev/compilers_{tag}.zip"
-
-
 TOOLS: Dict[str, Callable[[str], str]] = {
     "dtk": dtk_url,
-    # "sjiswrap": sjiswrap_url,
-    # "wibo": wibo_url,
-    # "compilers": compilers_url,
 }
 
 
@@ -72,8 +54,8 @@ def main() -> None:
             output.parent.mkdir(parents=True, exist_ok=True)
             with output.open("wb") as f:
                 shutil.copyfileobj(response, f)
-            st = os.stat(output)
-            os.chmod(output, st.st_mode | stat.S_IEXEC)
+            st = output.stat()
+            output.chmod(st.st_mode | stat.S_IEXEC)
 
 
 if __name__ == "__main__":
