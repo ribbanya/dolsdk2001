@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
-import urllib.request
-import sys
-import os
-import stat
 import platform
+import sys
+import urllib.request
 from pathlib import Path
+from typing import cast
 
 if sys.platform == "cygwin":
     sys.exit(
@@ -40,12 +39,10 @@ def main():
         arch = "x86_64"
 
     url = f"{REPO}/releases/download/{tag}/dtk-{system}-{arch}{suffix}"
-    output = args.output
+    output = cast(Path, args.output)
     print(f"Downloading {url} to {output}")
     urllib.request.urlretrieve(url, output)
-
-    st = os.stat(output)
-    os.chmod(output, st.st_mode | stat.S_IEXEC)
+    output.chmod(0o755)
 
 
 if __name__ == "__main__":
