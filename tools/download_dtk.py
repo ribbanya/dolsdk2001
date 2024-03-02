@@ -1,32 +1,18 @@
 #!/usr/bin/env python3
 
 import argparse
+import io
+import os
 import platform
-import sys
+import shutil
+import stat
 import urllib.request
+import zipfile
 from pathlib import Path
-from typing import cast
-
-if sys.platform == "cygwin":
-    sys.exit(
-        f"Cygwin/MSYS2 is not supported."
-        f"\nPlease use native Windows Python instead."
-        f"\nPlease run pacman -R python in msys2."
-        f"\n(Current path: {sys.executable})"
-    )
-
-REPO = "https://github.com/encounter/decomp-toolkit"
+from typing import Callable, Dict, cast
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("tag_file", help="file containing GitHub tag")
-    parser.add_argument("output", type=Path, help="output file path")
-    args = parser.parse_args()
-
-    with open(args.tag_file, "r") as f:
-        tag = f.readline().rstrip()
-
+def dtk_url(tag: str) -> str:
     uname = platform.uname()
     suffix = ""
     system = uname.system.lower()
@@ -38,11 +24,56 @@ def main():
     if arch == "amd64":
         arch = "x86_64"
 
-    url = f"{REPO}/releases/download/{tag}/dtk-{system}-{arch}{suffix}"
-    output = cast(Path, args.output)
+    repo = "https://github.com/encounter/decomp-toolkit"
+    return f"{repo}/releases/download/{tag}/dtk-{system}-{arch}{suffix}"
+
+
+# def sjiswrap_url(tag: str) -> str:
+#     repo = "https://github.com/encounter/sjiswrap"
+#     return f"{repo}/releases/download/{tag}/sjiswrap-windows-x86.exe"
+
+
+# def wibo_url(tag: str) -> str:
+#     repo = "https://github.com/decompals/wibo"
+#     return f"{repo}/releases/download/{tag}/wibo"
+
+
+# def compilers_url(tag: str) -> str:
+#     return f"https://files.decomp.dev/compilers_{tag}.zip"
+
+
+TOOLS: Dict[str, Callable[[str], str]] = {
+    "dtk": dtk_url,
+    # "sjiswrap": sjiswrap_url,
+    # "wibo": wibo_url,
+    # "compilers": compilers_url,
+}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("tool", help="Tool name")
+    parser.add_argument("output", type=Path, help="output file path")
+    parser.add_argument("--tag", help="GitHub tag", required=True)
+    args = parser.parse_args()
+
+    url = TOOLS[args.tool](args.tag)
+    output = Path(args.output)
+
     print(f"Downloading {url} to {output}")
-    urllib.request.urlretrieve(url, output)
-    output.chmod(0o755)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req) as response:
+        if url.endswith(".zip"):
+            data = io.BytesIO(response.read())
+            with zipfile.ZipFile(data) as f:
+                f.extractall(output)
+            output.touch(mode=0o755)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with output.open("wb") as f:
+                shutil.copyfileobj(response, f)
+            st = os.stat(output)
+            os.chmod(output, st.st_mode | stat.S_IEXEC)
 
 
 if __name__ == "__main__":

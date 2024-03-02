@@ -100,7 +100,9 @@ ifeq ($(HOST_OS),macos)
 else
   CPP := cpp
 endif
-DTK     := tools/dtk
+DTK     := $(BUILD_DIR)/tools/dtk
+DTK_VERSION := 0.7.4
+DTK_VERSION_FILE = $(BUILD_DIR)/tools/dtk_version
 
 CC        = $(MWCC)
 
@@ -154,16 +156,23 @@ extract: $(DTK)
 distclean:
 	rm -rf $(BASEROM_DIR)/release
 	rm -rf $(BASEROM_DIR)/debug
-	rm -rf tools/dtk
 	make clean
 
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf *.a
 
-$(DTK): tools/dtk_version
-	@echo "Downloading $@"
-	$(QUIET) $(PYTHON) tools/download_dtk.py $< $@
+
+.PHONY: check-dtk
+
+CURRENT_DTK_VERSION := "$(shell $(DTK) --version | awk '{print $$2}' || echo '')" 
+
+check-dtk:
+	@if [ "$(DTK_VERSION) " != "$(CURRENT_DTK_VERSION)" ]; then \
+		$(QUIET) $(PYTHON) tools/download_dtk.py dtk $(DTK) --tag "v$(DTK_VERSION)"; \
+	fi
+
+$(DTK): check-dtk
 
 build/debug/src/%.o: src/%.c
 	$(CC) -c -opt level=0 -inline off -schedule off -sym on $(CFLAGS) -I- $(INCLUDES) -DDEBUG $< -o $@
