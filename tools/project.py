@@ -114,47 +114,14 @@ CHAIN = "cmd /c " if is_windows() else ""
 EXE = ".exe" if is_windows() else ""
 
 
-# Load decomp-toolkit generated config.json
-def load_build_config(
-    config: ProjectConfig, build_config_path: Path
-) -> Optional[Dict[str, Any]]:
-    if not build_config_path.is_file():
-        return None
-
-    def versiontuple(v: str) -> Tuple[int, ...]:
-        return tuple(map(int, (v.split("."))))
-
-    f = open(build_config_path, "r", encoding="utf-8")
-    build_config: Dict[str, Any] = json.load(f)
-    config_version = build_config.get("version")
-    if not config_version:
-        # Invalid config.json
-        f.close()
-        os.remove(build_config_path)
-        return None
-
-    dtk_version = str(config.dtk_tag)[1:]  # Strip v
-    if versiontuple(config_version) < versiontuple(dtk_version):
-        # Outdated config.json
-        f.close()
-        os.remove(build_config_path)
-        return None
-
-    f.close()
-    return build_config
-
-
 # Generate build.ninja and objdiff.json
 def generate_build(config: ProjectConfig) -> None:
-    build_config = load_build_config(config, config.out_path() / "config.json")
-    generate_build_ninja(config, build_config)
-    generate_objdiff_config(config, build_config)
+    generate_build_ninja(config)
+    generate_objdiff_config(config)
 
 
 # Generate build.ninja
-def generate_build_ninja(
-    config: ProjectConfig, build_config: Optional[Dict[str, Any]]
-) -> None:
+def generate_build_ninja(config: ProjectConfig) -> None:
     config.validate()
 
     out = io.StringIO()
@@ -344,43 +311,43 @@ def generate_build_ninja(
     build_src_path = build_path / "src"
     build_config_path = build_path / "config.json"
 
-    if build_config:
-        used_compiler_versions: Set[str] = set()
-        source_inputs: List[Path] = []
+    used_compiler_versions: Set[str] = set()
+    # TODO
+    source_inputs: List[Path] = []
 
+    # Check if all compiler versions exist
+    for mw_version in used_compiler_versions:
+        mw_path = compilers / mw_version / "mwcceppc.exe"
+        if config.compilers_path and not os.path.exists(mw_path):
+            sys.exit(f"Compiler {mw_path} does not exist")
 
-        # Check if all compiler versions exist
-        for mw_version in used_compiler_versions:
-            mw_path = compilers / mw_version / "mwcceppc.exe"
-            if config.compilers_path and not os.path.exists(mw_path):
-                sys.exit(f"Compiler {mw_path} does not exist")
+    ###
+    # Helper rule for building all source files
+    ###
+    # TODO
+    # n.comment("Build all source files")
+    # n.build(
+    #     outputs="all_source",
+    #     rule="phony",
+    #     inputs=source_inputs,
+    # )
+    # n.newline()
 
-        ###
-        # Helper rule for building all source files
-        ###
-        n.comment("Build all source files")
-        n.build(
-            outputs="all_source",
-            rule="phony",
-            inputs=source_inputs,
-        )
-        n.newline()
+    ###
+    # Check hash
+    ###
+    # TODO objdiff-cli
 
-        ###
-        # Check hash
-        ###
-        # TODO objdiff-cli
+    ###
+    # Calculate progress
+    ###
+    # TODO objdiff-cli
+    ###
 
-        ###
-        # Calculate progress
-        ###
-        # TODO objdiff-cli
-        ###
-
-        # Helper tools (diff)
-        ###
-        # TODO objdiff-cli
-        # TODO: make these rules work for RELs too
+    # Helper tools (diff)
+    ###
+    # TODO objdiff-cli
+    # TODO: make these rules work for RELs too
 
     ###
     # Regenerate on change
@@ -407,11 +374,12 @@ def generate_build_ninja(
     ###
     # Default rule
     ###
-    n.comment("Default rule")
-    if build_config:
-        n.default(progress_path)
-    else:
-        n.default(build_config_path)
+    # TODO
+    # n.comment("Default rule")
+    # if build_config:
+    #     n.default(progress_path)
+    # else:
+    #     n.default(build_config_path)
 
     # Write build.ninja
     with open("build.ninja", "w", encoding="utf-8") as f:
@@ -420,12 +388,7 @@ def generate_build_ninja(
 
 
 # Generate objdiff.json
-def generate_objdiff_config(
-    config: ProjectConfig, build_config: Optional[Dict[str, Any]]
-) -> None:
-    if not build_config:
-        return
-
+def generate_objdiff_config(config: ProjectConfig) -> None:
     objdiff_config: Dict[str, Any] = {
         "min_version": "0.4.3",
         "custom_make": "ninja",
@@ -492,15 +455,6 @@ def generate_objdiff_config(
         unit_config["complete"] = obj.completed
         objdiff_config["units"].append(unit_config)
 
-    # Add DOL units
-    for unit in build_config["units"]:
-        add_unit(unit, build_config["name"])
-
-    # Add REL units
-    for module in build_config["modules"]:
-        for unit in module["units"]:
-            add_unit(unit, module["name"])
-
     # Write objdiff.json
     with open("objdiff.json", "w", encoding="utf-8") as w:
         from .ninja_syntax import serialize_path
@@ -510,135 +464,134 @@ def generate_objdiff_config(
 
 # Calculate, print and write progress to progress.json
 def calculate_progress(config: ProjectConfig) -> None:
-    out_path = config.out_path()
-    build_config = load_build_config(config, out_path / "config.json")
-    if not build_config:
-        return
+    pass
+    # TODO
+    # out_path = config.out_path()
 
-    class ProgressUnit:
-        def __init__(self, name: str) -> None:
-            self.name: str = name
-            self.code_total: int = 0
-            self.code_fancy_frac: int = config.progress_code_fancy_frac
-            self.code_fancy_item: str = config.progress_code_fancy_item
-            self.code_progress: int = 0
-            self.data_total: int = 0
-            self.data_fancy_frac: int = config.progress_data_fancy_frac
-            self.data_fancy_item: str = config.progress_data_fancy_item
-            self.data_progress: int = 0
-            self.objects_progress: int = 0
-            self.objects_total: int = 0
-            self.objects: Set[Object] = set()
+    # class ProgressUnit:
+    #     def __init__(self, name: str) -> None:
+    #         self.name: str = name
+    #         self.code_total: int = 0
+    #         self.code_fancy_frac: int = config.progress_code_fancy_frac
+    #         self.code_fancy_item: str = config.progress_code_fancy_item
+    #         self.code_progress: int = 0
+    #         self.data_total: int = 0
+    #         self.data_fancy_frac: int = config.progress_data_fancy_frac
+    #         self.data_fancy_item: str = config.progress_data_fancy_item
+    #         self.data_progress: int = 0
+    #         self.objects_progress: int = 0
+    #         self.objects_total: int = 0
+    #         self.objects: Set[Object] = set()
 
-        def add(self, build_obj: Dict[str, Any]) -> None:
-            self.code_total += build_obj["code_size"]
-            self.data_total += build_obj["data_size"]
+    #     def add(self, build_obj: Dict[str, Any]) -> None:
+    #         self.code_total += build_obj["code_size"]
+    #         self.data_total += build_obj["data_size"]
 
-            # Avoid counting the same object in different modules twice
-            include_object = build_obj["name"] not in self.objects
-            if include_object:
-                self.objects.add(build_obj["name"])
-                self.objects_total += 1
+    #         # Avoid counting the same object in different modules twice
+    #         include_object = build_obj["name"] not in self.objects
+    #         if include_object:
+    #             self.objects.add(build_obj["name"])
+    #             self.objects_total += 1
 
-            if build_obj["autogenerated"]:
-                # Skip autogenerated objects
-                return
+    #         if build_obj["autogenerated"]:
+    #             # Skip autogenerated objects
+    #             return
 
-            result = config.find_object(build_obj["name"])
-            if not result:
-                return
+    #         result = config.find_object(build_obj["name"])
+    #         if not result:
+    #             return
 
-            _, obj = result
-            if not obj.completed:
-                return
+    #         _, obj = result
+    #         if not obj.completed:
+    #             return
 
-            self.code_progress += build_obj["code_size"]
-            self.data_progress += build_obj["data_size"]
-            if include_object:
-                self.objects_progress += 1
+    #         self.code_progress += build_obj["code_size"]
+    #         self.data_progress += build_obj["data_size"]
+    #         if include_object:
+    #             self.objects_progress += 1
 
-        def code_frac(self) -> float:
-            return self.code_progress / self.code_total
+    #     def code_frac(self) -> float:
+    #         return self.code_progress / self.code_total
 
-        def data_frac(self) -> float:
-            return self.data_progress / self.data_total
+    #     def data_frac(self) -> float:
+    #         return self.data_progress / self.data_total
 
-    # Add DOL units
-    all_progress = ProgressUnit("All") if config.progress_all else None
-    dol_progress = ProgressUnit("DOL")
-    for unit in build_config["units"]:
-        if all_progress:
-            all_progress.add(unit)
-        dol_progress.add(unit)
+    # # Add DOL units
+    # all_progress = ProgressUnit("All") if config.progress_all else None
+    # dol_progress = ProgressUnit("DOL")
+    # for unit in build_config["units"]:
+    #     if all_progress:
+    #         all_progress.add(unit)
+    #     dol_progress.add(unit)
 
-    # Add REL units
-    rels_progress = ProgressUnit("Modules") if config.progress_modules else None
-    modules_progress: List[ProgressUnit] = []
-    for module in build_config["modules"]:
-        progress = ProgressUnit(module["name"])
-        modules_progress.append(progress)
-        for unit in module["units"]:
-            if all_progress:
-                all_progress.add(unit)
-            if rels_progress:
-                rels_progress.add(unit)
-            progress.add(unit)
+    # # Add REL units
+    # rels_progress = ProgressUnit("Modules") if config.progress_modules else None
+    # modules_progress: List[ProgressUnit] = []
+    # for module in build_config["modules"]:
+    #     progress = ProgressUnit(module["name"])
+    #     modules_progress.append(progress)
+    #     for unit in module["units"]:
+    #         if all_progress:
+    #             all_progress.add(unit)
+    #         if rels_progress:
+    #             rels_progress.add(unit)
+    #         progress.add(unit)
 
-    # Print human-readable progress
-    print("Progress:")
+    # # Print human-readable progress
+    # print("Progress:")
 
-    def print_category(unit: Optional[ProgressUnit]) -> None:
-        if unit is None:
-            return
+    # def print_category(unit: Optional[ProgressUnit]) -> None:
+    #     if unit is None:
+    #         return
 
-        code_frac = unit.code_frac()
-        data_frac = unit.data_frac()
-        print(
-            f"  {unit.name}: {code_frac:.2%} code, {data_frac:.2%} data ({unit.objects_progress} / {unit.objects_total} files)"
-        )
-        print(f"    Code: {unit.code_progress} / {unit.code_total} bytes")
-        print(f"    Data: {unit.data_progress} / {unit.data_total} bytes")
-        if config.progress_use_fancy:
-            print(
-                "\nYou have {} out of {} {} and collected {} out of {} {}.".format(
-                    math.floor(code_frac * unit.code_fancy_frac),
-                    unit.code_fancy_frac,
-                    unit.code_fancy_item,
-                    math.floor(data_frac * unit.data_fancy_frac),
-                    unit.data_fancy_frac,
-                    unit.data_fancy_item,
-                )
-            )
+    #     code_frac = unit.code_frac()
+    #     data_frac = unit.data_frac()
+    #     print(
+    #         f"  {unit.name}: {code_frac:.2%} code, {data_frac:.2%} data ({unit.objects_progress} / {unit.objects_total} files)"
+    #     )
+    #     print(f"    Code: {unit.code_progress} / {unit.code_total} bytes")
+    #     print(f"    Data: {unit.data_progress} / {unit.data_total} bytes")
+    #     if config.progress_use_fancy:
+    #         print(
+    #             "\nYou have {} out of {} {} and collected {} out of {} {}.".format(
+    #                 math.floor(code_frac * unit.code_fancy_frac),
+    #                 unit.code_fancy_frac,
+    #                 unit.code_fancy_item,
+    #                 math.floor(data_frac * unit.data_fancy_frac),
+    #                 unit.data_fancy_frac,
+    #                 unit.data_fancy_item,
+    #             )
+    #         )
 
-    if all_progress:
-        print_category(all_progress)
-    print_category(dol_progress)
-    module_count = len(build_config["modules"])
-    if module_count > 0:
-        print_category(rels_progress)
-        if config.progress_each_module:
-            for progress in modules_progress:
-                print_category(progress)
+    # if all_progress:
+    #     print_category(all_progress)
+    # print_category(dol_progress)
+    # module_count = len(build_config["modules"])
+    # if module_count > 0:
+    #     print_category(rels_progress)
+    #     if config.progress_each_module:
+    #         for progress in modules_progress:
+    #             print_category(progress)
 
-    # Generate and write progress.json
-    progress_json: Dict[str, Any] = {}
+    # # Generate and write progress.json
+    # progress_json: Dict[str, Any] = {}
 
-    def add_category(category: str, unit: ProgressUnit) -> None:
-        progress_json[category] = {
-            "code": unit.code_progress,
-            "code/total": unit.code_total,
-            "data": unit.data_progress,
-            "data/total": unit.data_total,
-        }
+    # def add_category(category: str, unit: ProgressUnit) -> None:
+    #     progress_json[category] = {
+    #         "code": unit.code_progress,
+    #         "code/total": unit.code_total,
+    #         "data": unit.data_progress,
+    #         "data/total": unit.data_total,
+    #     }
 
-    if all_progress:
-        add_category("all", all_progress)
-    add_category("dol", dol_progress)
-    if len(build_config["modules"]) > 0:
-        if rels_progress:
-            add_category("modules", rels_progress)
-        if config.progress_each_module:
-            for progress in modules_progress:
-                add_category(progress.name, progress)
-    with open(out_path / "progress.json", "w", encoding="utf-8") as w:
-        json.dump(progress_json, w, indent=4)
+    # if all_progress:
+    #     add_category("all", all_progress)
+    # add_category("dol", dol_progress)
+    # if len(build_config["modules"]) > 0:
+    #     if rels_progress:
+    #         add_category("modules", rels_progress)
+    #     if config.progress_each_module:
+    #         for progress in modules_progress:
+    #             add_category(progress.name, progress)
+    # with open(out_path / "progress.json", "w", encoding="utf-8") as w:
+    #     json.dump(progress_json, w, indent=4)

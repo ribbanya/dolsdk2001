@@ -17,8 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from tools.project import (Object, ProjectConfig, calculate_progress,
-                           generate_build, is_windows)
+from tools.project import (
+    Object,
+    ProjectConfig,
+    calculate_progress,
+    generate_build,
+    is_windows,
+)
 
 # Game versions
 DEFAULT_VERSION = 0
@@ -105,7 +110,6 @@ config.build_dir = args.build_dir
 config.build_dtk_path = args.build_dtk
 config.compilers_path = args.compilers
 config.debug = args.debug
-config.generate_map = args.map
 config.sjiswrap_path = args.sjiswrap
 if not is_windows():
     config.wrapper = args.wrapper
@@ -115,15 +119,6 @@ config.compilers_tag = "20231018"
 config.dtk_tag = "v0.7.4"
 config.sjiswrap_tag = "v1.1.1"
 config.wibo_tag = "0.6.9"
-
-# Project
-config.config_path = Path("config") / config.version / "config.yml"
-config.check_sha_path = Path("config") / config.version / "build.sha1"
-config.ldflags = [
-    "-fp hardware",
-    "-nodefaults",
-    # "-listclosure", # Uncomment for Wii linkers
-]
 
 # Base flags, common to most GC/Wii games.
 # Generally leave untouched, with overrides added below.
@@ -173,8 +168,6 @@ cflags_rel = [
     "-sdata2 0",
 ]
 
-config.linker_version = "GC/1.3.2"
-
 
 # Helper function for Dolphin libraries
 def DolphinLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
@@ -201,20 +194,8 @@ def Rel(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
 Matching = True
 NonMatching = False
 
-config.warn_missing_config = True
 config.warn_missing_source = False
-config.libs = [
-    {
-        "lib": "Runtime.PPCEABI.H",
-        "mw_version": config.linker_version,
-        "cflags": cflags_runtime,
-        "host": False,
-        "objects": [
-            Object(NonMatching, "Runtime.PPCEABI.H/global_destructor_chain.c"),
-            Object(NonMatching, "Runtime.PPCEABI.H/__init_cpp_exceptions.cpp"),
-        ],
-    },
-]
+config.libs = []
 
 if args.mode == "configure":
     # Write build.ninja and objdiff.json
