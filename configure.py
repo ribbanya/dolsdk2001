@@ -48,7 +48,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--revision",
-    metavar="REVISION",
     dest="revision",
     type=int,
     default=DEFAULT_REVISION,
