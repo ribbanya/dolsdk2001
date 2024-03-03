@@ -12,7 +12,6 @@
 
 import io
 import json
-import math
 import os
 import platform
 import sys
@@ -122,6 +121,10 @@ def generate_build(config: ProjectConfig) -> None:
     generate_objdiff_config(config)
 
 
+def get_objdiff_config_path() -> Path:
+    return Path(__file__).parents[1] / "objdiff.json"
+
+
 # Generate build.ninja
 def generate_build_ninja(config: ProjectConfig) -> None:
     config.validate()
@@ -145,7 +148,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.comment("Tooling")
 
     build_path = config.out_path()
-    progress_path = build_path / "progress.json"
+    objdiff_config_path = get_objdiff_config_path()
     build_tools_path = config.build_dir / "tools"
     download_tool = config.tools_dir / "download_tool.py"
     n.rule(
@@ -315,6 +318,74 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     used_compiler_versions: Set[str] = set()
     # TODO
     source_inputs: List[Path] = []
+    used_compiler_versions: Set[str] = set()
+    source_inputs: List[Path] = []
+    source_added: Set[Path] = set()
+
+    def make_cflags_str(cflags: Union[str, List[str]]) -> str:
+        if isinstance(cflags, list):
+            return " ".join(cflags)
+        else:
+            return cflags
+
+    def add_unit(obj: Object, lib_name: str, profile: str) -> None:
+        obj_name = obj.name
+
+        lib_name = lib["lib"]
+        src_dir = Path(lib.get("src_dir", config.src_dir))
+
+        options = obj.options
+        completed = obj.completed
+
+        unit_src_path = src_dir / lib_name / str(options["source"])
+
+        if not unit_src_path.exists():
+            if config.warn_missing_source or completed:
+                print(f"Missing source file {unit_src_path}")
+            return
+
+        mw_version = options["mw_version"] or lib["mw_version"]
+        cflags_str = make_cflags_str(options["cflags"] or lib["cflags"])
+        if options["extra_cflags"] is not None:
+            extra_cflags_str = make_cflags_str(options["extra_cflags"])
+            cflags_str += " " + extra_cflags_str
+        used_compiler_versions.add(mw_version)
+
+        # TODO assign this with src_dir etc
+        build_src_path = config.out_path() / profile / "src" / lib_name
+
+        base_object = Path(obj.name).with_suffix("")
+        src_obj_path = build_src_path / base_object.with_suffix(".o")
+        src_base_path = build_src_path / base_object
+
+        if src_obj_path not in source_added:
+            source_added.add(src_obj_path)
+
+            n.comment(f"{obj_name}: {lib_name} (linked {completed})")
+            n.build(
+                outputs=src_obj_path,
+                rule="mwcc_sjis" if options["shiftjis"] else "mwcc",
+                inputs=unit_src_path,
+                variables={
+                    "mw_version": Path(mw_version),
+                    "cflags": cflags_str,
+                    "basedir": os.path.dirname(src_base_path),
+                    "basefile": src_base_path,
+                },
+                implicit=(mwcc_sjis_implicit if options["shiftjis"] else mwcc_implicit),
+            )
+
+            n.newline()
+
+            if options["add_to_all"]:
+                source_inputs.append(src_obj_path)
+
+        if completed:
+            obj_path = src_obj_path
+
+    # # Add DOL units
+    # for unit in build_config["units"]:
+    #     add_unit(unit, build_config["name"])
 
     # Check if all compiler versions exist
     for mw_version in used_compiler_versions:
@@ -353,44 +424,55 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.newline()
 
     for lib in filter(lambda l: l.get("archive") is not None, config.libs or []):
+        lib_name = lib["lib"]
+        out_path = config.out_path()
         for profile in profiles:
+
+            def get_dir(name: str):
+                return out_path / profile / name / lib_name
+
             archive = cast(Path, lib["archive"])
-            basedir = config.out_path() / profile / lib["lib"]
+            target_dir = get_dir("obj")
+            dwarf_dir = get_dir("dwarf")
+            asm_dir = get_dir("asm")
+            src_dir = get_dir("src")
 
             # HACK
             if profile == "debug":
                 archive = archive.with_stem(f"{archive.stem}D")
 
-            outputs = []
+            obj_files: List[Path] = []
+            src_files: List[Path] = []
+            objects: List[Object] = lib.get("objects", [])
+
             obj: Object
             n.comment("Extract archive")
-            for obj in lib.get("objects", []):
-                outputs.append(
-                    (basedir / Path(obj.name).name).with_suffix(".o"),
+            for obj in objects:
+                obj_files.append(
+                    (target_dir / Path(obj.name).name).with_suffix(".o"),
                 )
             n.build(
-                outputs=outputs,
+                outputs=obj_files,
                 rule="ar_extract",
                 inputs=archive,
-                variables={"basedir": basedir},
+                variables={"basedir": target_dir},
                 implicit=dtk,
             )
             n.newline()
 
-            for input in outputs:
-                n.comment(str(input))
+            for obj_file, obj in zip(obj_files, objects):
+                n.comment(str(obj_file))
                 n.build(
-                    outputs=input.with_suffix(".s"),
+                    outputs=asm_dir / obj_file.with_suffix(".s").name,
                     rule="elf_disasm",
-                    inputs=input,
+                    inputs=obj_file,
                 )
                 n.build(
-                    outputs=input.with_name(f"{input.stem}_DWARF.c"),
+                    outputs=dwarf_dir / obj_file.with_suffix(".c").name,
                     rule="dwarf_dump",
-                    inputs=input,
+                    inputs=obj_file,
                 )
-                n.newline()
-
+                add_unit(obj, lib_name, profile)
 
     ###
     # Helper rule for building all source files
@@ -414,6 +496,21 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     ###
     # TODO objdiff-cli
     ###
+
+    ###
+    # Generate report
+    ###
+    n.comment("Calculate progress")
+    n.rule(
+        name="objdiff_config",
+        command=f"$python {configure_script} $configure_args objdiff",
+        description="OBJDIFF",
+    )
+    n.build(
+        outputs=objdiff_config_path,
+        rule="objdiff_config",
+        implicit=[configure_script, python_lib],
+    )
 
     # Helper tools (diff)
     ###
@@ -480,34 +577,22 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
 
     build_path = config.out_path()
 
-    def add_unit(build_obj: Dict[str, Any], module_name: str) -> None:
-        if build_obj["autogenerated"]:
-            # Skip autogenerated objects
-            return
-
-        obj_path, obj_name = build_obj["object"], build_obj["name"]
-        base_object = Path(obj_name).with_suffix("")
+    def add_unit(build_obj: Object, lib_name: str, profile: str) -> None:
+        obj_path = Path(build_obj.name)
+        obj_name = obj_path.with_suffix(".o")
+        base_object = obj_path.with_suffix("")
+        unit_obj_path = build_path / profile / "obj" / lib_name
+        unit_src_path = build_path / profile / "src" / lib_name
         unit_config: Dict[str, Any] = {
-            "name": Path(module_name) / base_object,
-            "target_path": obj_path,
+            "name": Path(profile) / base_object,
+            "target_path": unit_obj_path / obj_name,
         }
-
-        result = config.find_object(obj_name)
-        if not result:
-            objdiff_config["units"].append(unit_config)
-            return
-
-        lib, obj = result
-        src_dir = Path(lib.get("src_dir", config.src_dir))
-
-        unit_src_path = src_dir / str(obj.options["source"])
 
         if not unit_src_path.exists():
             objdiff_config["units"].append(unit_config)
             return
 
         cflags = obj.options["cflags"] or lib["cflags"]
-        src_obj_path = build_path / "src" / f"{base_object}.o"
 
         reverse_fn_order = False
         if type(cflags) is list:
@@ -520,13 +605,20 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
                     elif value == "nodeferred":
                         reverse_fn_order = False
 
-        unit_config["base_path"] = src_obj_path
+        unit_config["base_path"] = unit_src_path / obj_name
         unit_config["reverse_fn_order"] = reverse_fn_order
         unit_config["complete"] = obj.completed
         objdiff_config["units"].append(unit_config)
 
+    for lib in config.libs or []:
+        lib_name = lib["lib"]
+        # HACK
+        for profile in ["release", "debug"]:
+            for obj in lib.get("objects", []):
+                add_unit(obj, lib_name, profile)
+
     # Write objdiff.json
-    with open("objdiff.json", "w", encoding="utf-8") as w:
+    with open(get_objdiff_config_path(), "w", encoding="utf-8") as w:
         from .ninja_syntax import serialize_path
 
         json.dump(objdiff_config, w, indent=4, default=serialize_path)

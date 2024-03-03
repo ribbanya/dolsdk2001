@@ -23,6 +23,7 @@ from tools.project import (
     ProjectConfig,
     calculate_progress,
     generate_build,
+    generate_objdiff_config,
     is_windows,
 )
 
@@ -126,6 +127,7 @@ config.wibo_tag = "0.6.9"
 # Base flags, common to most GC/Wii games.
 # Generally leave untouched, with overrides added below.
 cflags_base = [
+    "-cwd source",
     "-nodefaults",
     "-proc gekko",
     "-align powerpc",
@@ -144,7 +146,7 @@ cflags_base = [
     "-str reuse",
     "-multibyte",  # For Wii compilers, replace with `-enc SJIS`
     "-i include",
-    f"-i build/{config.version}/include",
+    # f"-i build/{config.version}/include",
     f"-DVERSION={version_num}",
 ]
 
@@ -176,7 +178,7 @@ def DolphinLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
     return {
         "lib": lib_name,
         "archive": (config.archive_dir / lib_name).with_suffix(".a"),
-        "mw_version": "GC/1.2.5n",
+        "mw_version": "GC/1.2.5",
         "cflags": cflags_base,
         "host": False,
         "objects": objects,
@@ -218,9 +220,10 @@ config.libs = [
             Object(Matching, "OSTime.c"),
             Object(Matching, "OSTimer.c"),
             Object(Matching, "OSUartExi.c"),
-            Object(Matching, "ppc_eabi_init.c"),
-            Object(Matching, "start.c"),
-            Object(Matching, "time.dolphin.c"),
+            # TODO
+            # Object(Matching, "ppc_eabi_init.c"),
+            # Object(Matching, "start.c"),
+            # Object(Matching, "time.dolphin.c"),
         ],
     ),
 ]
@@ -235,9 +238,13 @@ config.libs = [
 if args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
-elif args.mode == "progress":
+elif args.mode == "objdiff":
     # Print progress and write progress.json
     config.progress_each_module = args.verbose
-    calculate_progress(config)
+    generate_objdiff_config(config)
+# elif args.mode == "progress":
+#     # Print progress and write progress.json
+#     config.progress_each_module = args.verbose
+#     calculate_progress(config)
 else:
     sys.exit("Unknown mode: " + args.mode)
