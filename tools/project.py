@@ -322,6 +322,9 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         if config.compilers_path and not os.path.exists(mw_path):
             sys.exit(f"Compiler {mw_path} does not exist")
 
+    # HACK: Figure out something better, especially when objdiff gets build profiles
+    profiles = ["debug", "release"]
+
     ###
     # Extract archives
     #
@@ -336,24 +339,29 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.newline()
 
     for lib in filter(lambda l: l.get("archive") is not None, config.libs or []):
-        print(lib["archive"])
-        archive = cast(Path, lib["archive"])
-        basedir = config.out_path() / "release" / lib["lib"]
-        outputs = []
-        obj: Object
-        n.comment("Extract archive")
-        for obj in lib.get("objects", []):
-            outputs.append(
-                (basedir / Path(obj.name).name).with_suffix(".o"),
+        for profile in profiles:
+            archive = cast(Path, lib["archive"])
+            basedir = config.out_path() / profile / lib["lib"]
+
+            # HACK
+            if profile == "debug":
+                archive = archive.with_stem(f"{archive.stem}D")
+
+            outputs = []
+            obj: Object
+            n.comment("Extract archive")
+            for obj in lib.get("objects", []):
+                outputs.append(
+                    (basedir / Path(obj.name).name).with_suffix(".o"),
+                )
+            n.build(
+                outputs=outputs,
+                rule="ar_extract",
+                inputs=archive,
+                variables={"basedir": basedir, "shortname": archive.name},
+                implicit=dtk,
             )
-        n.build(
-            outputs=outputs,
-            rule="ar_extract",
-            inputs=archive,
-            variables={"basedir": basedir, "shortname": archive.name},
-            implicit=dtk,
-        )
-    n.newline()
+            n.newline()
 
     # n.build(
 
