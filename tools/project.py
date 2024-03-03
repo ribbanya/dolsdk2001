@@ -329,12 +329,26 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     # Extract archives
     #
     n.comment("Extract library archives")
-    makerel_rsp = build_path / "makerel.rsp"
-    # TODO variables
     n.rule(
         name="ar_extract",
         command=f"{dtk} ar extract $in -o $basedir",
         description="EXTRACT $shortname",
+    )
+    n.newline()
+
+    n.comment("Disassemble object")
+    n.rule(
+        name="elf_disasm",
+        command=f"{dtk} elf disasm $in $out",
+        description="DISASM $shortname",
+    )
+    n.newline()
+
+    n.comment("Dump DWARF info")
+    n.rule(
+        name="dwarf_dump",
+        command=f"{dtk} dwarf dump $in -o $out",
+        description="DWARF $shortname",
     )
     n.newline()
 
@@ -358,10 +372,29 @@ def generate_build_ninja(config: ProjectConfig) -> None:
                 outputs=outputs,
                 rule="ar_extract",
                 inputs=archive,
-                variables={"basedir": basedir, "shortname": archive.name},
+                variables={"basedir": basedir, "shortname": archive.stem},
                 implicit=dtk,
             )
             n.newline()
+
+            for input in outputs:
+                n.comment(str(input))
+                n.build(
+                    outputs=input.with_suffix(".s"),
+                    rule="elf_disasm",
+                    inputs=input,
+                    variables={"shortname": input.stem},
+                )
+                n.build(
+                    outputs=input.with_name(f"{input.stem}_DWARF.c"),
+                    rule="dwarf_dump",
+                    inputs=input,
+                    variables={"shortname": input.stem},
+                )
+                n.newline()
+                # $(DTK) elf disasm $$i $${i%.o}.s ; \
+                pass
+                # $(DTK) dwarf dump $$i -o $${i%.o}_DWARF.c ; \
 
     # n.build(
 
