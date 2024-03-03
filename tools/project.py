@@ -332,7 +332,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.rule(
         name="ar_extract",
         command=f"{dtk} ar extract $in -o $basedir",
-        description="EXTRACT $shortname",
+        description="EXTRACT $in",
     )
     n.newline()
 
@@ -340,7 +340,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.rule(
         name="elf_disasm",
         command=f"{dtk} elf disasm $in $out",
-        description="DISASM $shortname",
+        description="DISASM $out",
     )
     n.newline()
 
@@ -348,7 +348,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.rule(
         name="dwarf_dump",
         command=f"{dtk} dwarf dump $in -o $out",
-        description="DWARF $shortname",
+        description="DWARF $out",
     )
     n.newline()
 
@@ -372,7 +372,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
                 outputs=outputs,
                 rule="ar_extract",
                 inputs=archive,
-                variables={"basedir": basedir, "shortname": archive.stem},
+                variables={"basedir": basedir},
                 implicit=dtk,
             )
             n.newline()
@@ -383,22 +383,14 @@ def generate_build_ninja(config: ProjectConfig) -> None:
                     outputs=input.with_suffix(".s"),
                     rule="elf_disasm",
                     inputs=input,
-                    variables={"shortname": input.stem},
                 )
                 n.build(
                     outputs=input.with_name(f"{input.stem}_DWARF.c"),
                     rule="dwarf_dump",
                     inputs=input,
-                    variables={"shortname": input.stem},
                 )
                 n.newline()
-                # $(DTK) elf disasm $$i $${i%.o}.s ; \
-                pass
-                # $(DTK) dwarf dump $$i -o $${i%.o}_DWARF.c ; \
 
-    # n.build(
-
-    #         )
 
     ###
     # Helper rule for building all source files
