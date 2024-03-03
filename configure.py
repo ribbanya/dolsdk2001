@@ -125,6 +125,7 @@ config.compilers_tag = "20231018"
 config.dtk_tag = "v0.7.4"
 config.sjiswrap_tag = "v1.1.1"
 config.wibo_tag = "0.6.9"
+config.objdiff_cli_tag = "v1.1.0"
 
 
 # Base flags, common to most GC/Wii games.
@@ -242,8 +243,6 @@ if args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
 elif args.mode == "objdiff":
-    # Print progress and write progress.json
-    config.progress_each_module = args.verbose
     generate_objdiff_config(config)
 # elif args.mode == "progress":
 #     # Print progress and write progress.json

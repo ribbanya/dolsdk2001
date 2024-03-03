@@ -60,6 +60,8 @@ class ProjectConfig:
         self.wrapper: Optional[Path] = None  # If None, download wibo on Linux
         self.sjiswrap_tag: Optional[str] = None  # Git tag
         self.sjiswrap_path: Optional[Path] = None  # If None, download
+        self.objdiff_cli_tag: Optional[str] = None  # Git tag
+        self.build_objdiff_cli_path: Optional[Path] = None  # If None, download
 
         # Project config
         self.debug: bool = False  # Build with debug info
@@ -157,38 +159,47 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         description="TOOL $out",
     )
 
-    if config.build_dtk_path:
-        dtk = build_tools_path / "release" / f"dtk{EXE}"
-        n.rule(
-            name="cargo",
-            command="cargo build --release --manifest-path $in --bin $bin --target-dir $target",
-            description="CARGO $bin",
-            depfile=Path("$target") / "release" / "$bin.d",
-            deps="gcc",
-        )
-        n.build(
-            outputs=dtk,
-            rule="cargo",
-            inputs=config.build_dtk_path / "Cargo.toml",
-            implicit=config.build_dtk_path / "Cargo.lock",
-            variables={
-                "bin": "dtk",
-                "target": build_tools_path,
-            },
-        )
-    elif config.dtk_tag:
-        dtk = build_tools_path / f"dtk{EXE}"
-        n.build(
-            outputs=dtk,
-            rule="download_tool",
-            implicit=download_tool,
-            variables={
-                "tool": "dtk",
-                "tag": config.dtk_tag,
-            },
-        )
-    else:
-        sys.exit("ProjectConfig.dtk_tag missing")
+    def build_rust_tool(
+        bin: str, tag: Optional[str], build_path: Optional[Path]
+    ) -> Path:
+        if build_path:
+            output = build_tools_path / "release" / f"{bin}{EXE}"
+            n.rule(
+                name="cargo",
+                command="cargo build --release --manifest-path $in --bin $bin --target-dir $target",
+                description="CARGO $bin",
+                depfile=Path("$target") / "release" / "$bin.d",
+                deps="gcc",
+            )
+            n.build(
+                outputs=output,
+                rule="cargo",
+                inputs=build_path / "Cargo.toml",
+                implicit=build_path / "Cargo.lock",
+                variables={
+                    "bin": bin,
+                    "target": build_tools_path,
+                },
+            )
+        elif tag:
+            output = build_tools_path / f"{bin}{EXE}"
+            n.build(
+                outputs=output,
+                rule="download_tool",
+                implicit=download_tool,
+                variables={
+                    "tool": bin,
+                    "tag": tag,
+                },
+            )
+        else:
+            sys.exit(f"ProjectConfig.{bin}_tag missing")
+        return output
+
+    dtk = build_rust_tool("dtk", config.dtk_tag, config.build_dtk_path)
+    objdiff_cli = build_rust_tool(
+        "objdiff-cli", config.objdiff_cli_tag, config.build_objdiff_cli_path
+    )
 
     if config.sjiswrap_path:
         sjiswrap = config.sjiswrap_path
@@ -500,15 +511,16 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     ###
     # Generate report
     ###
-    n.comment("Calculate progress")
+    n.comment("Generate report")
     n.rule(
-        name="objdiff_config",
-        command=f"$python {configure_script} $configure_args objdiff",
-        description="OBJDIFF",
+        name="objdiff_report",
+        command=f"{objdiff_cli} report generate -p $in -o $out",
+        description="REPORT",
     )
     n.build(
-        outputs=objdiff_config_path,
-        rule="objdiff_config",
+        inputs=objdiff_config_path.parent,
+        outputs=build_path / "report.json",
+        rule="objdiff_report",
         implicit=[configure_script, python_lib],
     )
 
@@ -527,7 +539,6 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         generator=True,
         description=f"RUN {configure_script}",
     )
-    # TODO objdiff_config goes here
     n.build(
         outputs="build.ninja",
         rule="configure",
@@ -537,6 +548,19 @@ def generate_build_ninja(config: ProjectConfig) -> None:
             python_lib_dir / "ninja_syntax.py",
         ],
     )
+    n.comment("Generate objdiff.json")
+    n.rule(
+        name="objdiff_config",
+        command=f"$python {configure_script} $configure_args objdiff",
+        description="OBJDIFF",
+    )
+    n.build(
+        outputs=objdiff_config_path,
+        rule="objdiff_config",
+        implicit=[configure_script, python_lib],
+    )
+
+    generate_objdiff_config(config)
     n.newline()
 
     ###
