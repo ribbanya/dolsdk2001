@@ -339,6 +339,8 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         else:
             return cflags
 
+    all_objs: List[Path] = []
+
     def add_unit(obj: Object, lib_name: str, profile: str) -> None:
         obj_name = obj.name
 
@@ -368,6 +370,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         base_object = Path(obj.name).with_suffix("")
         src_obj_path = build_src_path / base_object.with_suffix(".o")
         src_base_path = build_src_path / base_object
+        all_objs.append(src_obj_path)
 
         if src_obj_path not in source_added:
             source_added.add(src_obj_path)
@@ -390,13 +393,6 @@ def generate_build_ninja(config: ProjectConfig) -> None:
 
             if options["add_to_all"]:
                 source_inputs.append(src_obj_path)
-
-        if completed:
-            obj_path = src_obj_path
-
-    # # Add DOL units
-    # for unit in build_config["units"]:
-    #     add_unit(unit, build_config["name"])
 
     # Check if all compiler versions exist
     for mw_version in used_compiler_versions:
@@ -485,6 +481,9 @@ def generate_build_ninja(config: ProjectConfig) -> None:
                 )
                 add_unit(obj, lib_name, profile)
 
+            all_objs.extend(obj_files)
+
+
     ###
     # Helper rule for building all source files
     ###
@@ -512,6 +511,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     # Generate report
     ###
     n.comment("Generate report")
+    report_path = build_path / "report.json"
     n.rule(
         name="objdiff_report",
         command=f"{objdiff_cli} report generate -p $in -o $out",
@@ -519,8 +519,22 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     )
     n.build(
         inputs=objdiff_config_path.parent,
-        outputs=build_path / "report.json",
+        outputs=report_path,
         rule="objdiff_report",
+        implicit=[*all_objs, objdiff_cli, objdiff_config_path, configure_script, python_lib],
+    )
+
+    n.comment("Check OK")
+    ok_path = build_path / "ok"
+    n.rule(
+        name="check_ok",
+        command=f"$python {configure_script} $configure_args ok",
+        description="CHECK $in",
+    )
+    n.build(
+        inputs=report_path,
+        outputs=ok_path,
+        rule="check_ok",
         implicit=[configure_script, python_lib],
     )
 
@@ -647,6 +661,17 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
         from .ninja_syntax import serialize_path
 
         json.dump(objdiff_config, w, indent=4, default=serialize_path)
+
+
+def check_ok(config: ProjectConfig) -> None:
+    with (config.out_path() / "report.json").open() as f:
+        report = json.load(f)
+    if report.get("fuzzy_match_percent", 0) == 100:
+        print("\033[92mOK\033[0m")
+        exit(0)
+    else:
+        print("\033[91mFAILED\033[0m")
+        exit(1)
 
 
 # Calculate, print and write progress to progress.json

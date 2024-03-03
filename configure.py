@@ -22,6 +22,7 @@ from tools.project import (
     Object,
     ProjectConfig,
     calculate_progress,
+    check_ok,
     generate_build,
     generate_objdiff_config,
     is_windows,
@@ -244,6 +245,8 @@ if args.mode == "configure":
     generate_build(config)
 elif args.mode == "objdiff":
     generate_objdiff_config(config)
+elif args.mode == "ok":
+    check_ok(config)
 # elif args.mode == "progress":
 #     # Print progress and write progress.json
 #     config.progress_each_module = args.verbose
