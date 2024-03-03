@@ -50,6 +50,7 @@ class ProjectConfig:
         self.build_dir: Path = Path("build")
         self.src_dir: Path = Path("src")
         self.tools_dir: Path = Path("tools")
+        self.archive_dir: Path
 
         # Tooling
         self.dtk_tag: Optional[str] = None  # Git tag
@@ -86,6 +87,7 @@ class ProjectConfig:
             "build_dir",
             "src_dir",
             "tools_dir",
+            "archive_dir",
             "libs",
             "version",
         ]
@@ -309,7 +311,6 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     ###
     n.comment("Source files")
     build_src_path = build_path / "src"
-    build_config_path = build_path / "config.json"
 
     used_compiler_versions: Set[str] = set()
     # TODO
@@ -320,6 +321,14 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         mw_path = compilers / mw_version / "mwcceppc.exe"
         if config.compilers_path and not os.path.exists(mw_path):
             sys.exit(f"Compiler {mw_path} does not exist")
+
+    ###
+    # Extract archives
+    #
+    # n.comment("Extract library archives")
+    # n.build(
+
+    #         )
 
     ###
     # Helper rule for building all source files
@@ -363,7 +372,6 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         outputs="build.ninja",
         rule="configure",
         implicit=[
-            build_config_path,
             configure_script,
             python_lib,
             python_lib_dir / "ninja_syntax.py",

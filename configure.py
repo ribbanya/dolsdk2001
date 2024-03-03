@@ -13,6 +13,7 @@
 ###
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -104,6 +105,7 @@ config.version = args.version.upper()
 if config.version not in VERSIONS:
     sys.exit(f"Invalid version '{config.version}', expected {versions_str}")
 version_num = VERSIONS.index(config.version)
+config.archive_dir = Path("orig") / config.version
 
 # Apply arguments
 config.build_dir = args.build_dir
@@ -119,6 +121,7 @@ config.compilers_tag = "20231018"
 config.dtk_tag = "v0.7.4"
 config.sjiswrap_tag = "v1.1.1"
 config.wibo_tag = "0.6.9"
+
 
 # Base flags, common to most GC/Wii games.
 # Generally leave untouched, with overrides added below.
@@ -169,24 +172,13 @@ cflags_rel = [
 ]
 
 
-# Helper function for Dolphin libraries
 def DolphinLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
     return {
         "lib": lib_name,
+        "archive": (config.archive_dir / lib_name).with_suffix(".a"),
         "mw_version": "GC/1.2.5n",
         "cflags": cflags_base,
         "host": False,
-        "objects": objects,
-    }
-
-
-# Helper function for REL script objects
-def Rel(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
-    return {
-        "lib": lib_name,
-        "mw_version": "GC/1.3.2",
-        "cflags": cflags_rel,
-        "host": True,
         "objects": objects,
     }
 
@@ -195,7 +187,43 @@ Matching = True
 NonMatching = False
 
 config.warn_missing_source = False
-config.libs = []
+config.libs = [
+    DolphinLib(
+        "os",
+        [
+            Object(Matching, "dolphin/os/OSInit.c"),
+            Object(Matching, "dolphin/os/OSAlarm.c"),
+            Object(Matching, "dolphin/os/OSAlloc.c"),
+            Object(Matching, "dolphin/os/OSArena.c"),
+            Object(Matching, "dolphin/os/OSAudioSystem.c"),
+            Object(Matching, "dolphin/os/OSCache.c"),
+            Object(Matching, "dolphin/os/OSContext.c"),
+            Object(Matching, "dolphin/os/OSError.c"),
+            Object(Matching, "dolphin/os/OSExi.c"),
+            Object(Matching, "dolphin/os/OSFont.c"),
+            Object(Matching, "dolphin/os/OSInterrupt.c"),
+            Object(Matching, "dolphin/os/OSLink.c"),
+            Object(Matching, "dolphin/os/OSMemory.c"),
+            Object(Matching, "dolphin/os/OSMutex.c"),
+            Object(NonMatching, "dolphin/os/OSReboot.c"),
+            Object(NonMatching, "dolphin/os/OSReset.c"),
+            Object(Matching, "dolphin/os/OSResetSW.c"),
+            Object(Matching, "dolphin/os/OSRtc.c"),
+            Object(NonMatching, "dolphin/os/OSSerial.c"),
+            Object(Matching, "dolphin/os/OSSync.c"),
+            Object(NonMatching, "dolphin/os/OSThread.c"),
+            Object(Matching, "dolphin/os/OSTime.c"),
+            Object(NonMatching, "dolphin/os/OSUartExi.c"),
+            Object(NonMatching, "dolphin/os/init/__ppc_eabi_init.c"),
+        ],
+    ),
+]
+
+json.dump(
+    config.libs,
+    fp=sys.stdout,
+    default=lambda o: str(o) if isinstance(o, Path) else o.__dict__,
+)
 
 if args.mode == "configure":
     # Write build.ninja and objdiff.json
