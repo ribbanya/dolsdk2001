@@ -27,14 +27,17 @@ from tools.project import (
     is_windows,
 )
 
-# Game versions
-DEFAULT_VERSION = 0
-VERSIONS = ["DOLSDK-2001-05-22"]
+DEFAULT_REVISION = 36
+REVISIONS = {
+    36: "2001-05-22",
+    # 37: "2001-07-19",
+}
+REVISION_KEYS = list(map(str, REVISIONS.keys()))
 
-if len(VERSIONS) > 1:
-    versions_str = ", ".join(VERSIONS[:-1]) + f" or {VERSIONS[-1]}"
+if len(REVISION_KEYS) > 1:
+    revisions_str = ", ".join(REVISION_KEYS[:-1]) + f" or {REVISION_KEYS[-1]}"
 else:
-    versions_str = VERSIONS[0]
+    revisions_str = REVISION_KEYS[0]
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -44,10 +47,12 @@ parser.add_argument(
     nargs="?",
 )
 parser.add_argument(
-    "--version",
-    dest="version",
-    default=VERSIONS[DEFAULT_VERSION],
-    help=f"version to build ({versions_str})",
+    "--revision",
+    metavar="REVISION",
+    dest="revision",
+    type=int,
+    default=DEFAULT_REVISION,
+    help=f"revision to build ({revisions_str})",
 )
 parser.add_argument(
     "--build-dir",
@@ -102,10 +107,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 config = ProjectConfig()
-config.version = args.version.upper()
-if config.version not in VERSIONS:
-    sys.exit(f"Invalid version '{config.version}', expected {versions_str}")
-version_num = VERSIONS.index(config.version)
+if args.revision not in REVISIONS:
+    sys.exit(f"Invalid revision '{args.revision}', expected {revisions_str}")
+config.version = f"DOLSDK-{REVISIONS[args.revision]}"
 config.archive_dir = Path("orig") / config.version
 
 # Apply arguments
@@ -147,7 +151,7 @@ cflags_base = [
     "-multibyte",  # For Wii compilers, replace with `-enc SJIS`
     "-i include",
     # f"-i build/{config.version}/include",
-    f"-DVERSION={version_num}",
+    f"-DDOLPHIN_REVISION={args.revision}",
 ]
 
 # Debug flags
