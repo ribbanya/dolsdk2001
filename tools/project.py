@@ -584,7 +584,7 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
         unit_obj_path = build_path / profile / "obj" / lib_name
         unit_src_path = build_path / profile / "src" / lib_name
         unit_config: Dict[str, Any] = {
-            "name": Path(profile) / base_object,
+            "name": str((Path(profile) / lib_name/base_object).as_posix()),
             "target_path": unit_obj_path / obj_name,
         }
 
