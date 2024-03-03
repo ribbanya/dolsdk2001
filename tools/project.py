@@ -17,7 +17,7 @@ import os
 import platform
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 from . import ninja_syntax
 
@@ -325,7 +325,36 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     ###
     # Extract archives
     #
-    # n.comment("Extract library archives")
+    n.comment("Extract library archives")
+    makerel_rsp = build_path / "makerel.rsp"
+    # TODO variables
+    n.rule(
+        name="ar_extract",
+        command=f"{dtk} ar extract $in -o $basedir",
+        description="EXTRACT $shortname",
+    )
+    n.newline()
+
+    for lib in filter(lambda l: l.get("archive") is not None, config.libs or []):
+        print(lib["archive"])
+        archive = cast(Path, lib["archive"])
+        basedir = config.out_path() / "release" / lib["lib"]
+        outputs = []
+        obj: Object
+        n.comment("Extract archive")
+        for obj in lib.get("objects", []):
+            outputs.append(
+                (basedir / Path(obj.name).name).with_suffix(".o"),
+            )
+        n.build(
+            outputs=outputs,
+            rule="ar_extract",
+            inputs=archive,
+            variables={"basedir": basedir, "shortname": archive.name},
+            implicit=dtk,
+        )
+    n.newline()
+
     # n.build(
 
     #         )
