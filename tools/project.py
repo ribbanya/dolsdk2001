@@ -527,6 +527,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         generator=True,
         description=f"RUN {configure_script}",
     )
+    # TODO objdiff_config goes here
     n.build(
         outputs="build.ninja",
         rule="configure",
