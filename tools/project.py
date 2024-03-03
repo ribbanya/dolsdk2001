@@ -62,21 +62,10 @@ class ProjectConfig:
         self.sjiswrap_path: Optional[Path] = None  # If None, download
 
         # Project config
-        self.build_rels: bool = True  # Build REL files
-        self.check_sha_path: Optional[Path] = None  # Path to version.sha1
-        self.config_path: Optional[Path] = None  # Path to config.yml
         self.debug: bool = False  # Build with debug info
-        self.generate_map: bool = False  # Generate map file(s)
-        self.ldflags: Optional[List[str]] = None  # Linker flags
         self.libs: Optional[List[Dict[str, Any]]] = None  # List of libraries
-        self.linker_version: Optional[str] = None  # mwld version
         self.version: Optional[str] = None  # Version name
-        self.warn_missing_config: bool = False  # Warn on missing unit configuration
         self.warn_missing_source: bool = False  # Warn on missing source file
-        self.rel_strip_partial: bool = True  # Generate PLFs with -strip_partial
-        self.rel_empty_file: Optional[
-            Path
-        ] = None  # Path to empty.c for generating empty RELs
 
         # Progress output and progress.json config
         self.progress_all: bool = True  # Include combined "all" category
@@ -97,10 +86,6 @@ class ProjectConfig:
             "build_dir",
             "src_dir",
             "tools_dir",
-            "check_sha_path",
-            "config_path",
-            "ldflags",
-            "linker_version",
             "libs",
             "version",
         ]
@@ -183,19 +168,6 @@ def generate_build_ninja(
     n.comment("The arguments passed to configure.py, for rerunning it.")
     n.variable("configure_args", sys.argv[1:])
     n.variable("python", f'"{sys.executable}"')
-    n.newline()
-
-    ###
-    # Variables
-    ###
-    n.comment("Variables")
-    ldflags = " ".join(config.ldflags or [])
-    if config.generate_map:
-        ldflags += " -mapunused"
-    if config.debug:
-        ldflags += " -g"
-    n.variable("ldflags", ldflags)
-    n.variable("mw_version", config.linker_version)
     n.newline()
 
     ###
