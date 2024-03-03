@@ -55,13 +55,13 @@ write_asm: true
 # this can be set to true to skip most analysis steps, and ensure new
 # symbols are not created by the analyzer.
 # If you're not sure, leave this false.
-symbols_known: false
+symbols_known: true
 
 # (optional) Whether to create `gap_` symbols to prevent the linker from
 # adjusting the alignment / address of symbols.
 # When alignments are fully known (e.g. from a complete map file),
 # this can be set to false.
-fill_gaps: true
+fill_gaps: false
 
 # (optional) Custom template for `ldscript.lcf`. Avoid unless necessary.
 # See https://github.com/encounter/decomp-toolkit/blob/main/assets/ldscript.lcf

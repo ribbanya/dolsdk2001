@@ -12,24 +12,17 @@
 # Append --help to see available options.
 ###
 
-import sys
 import argparse
-
+import sys
 from pathlib import Path
-from typing import Dict, List, Any
-from tools.project import (
-    Object,
-    ProjectConfig,
-    calculate_progress,
-    generate_build,
-    is_windows,
-)
+from typing import Any, Dict, List
+
+from tools.project import (Object, ProjectConfig, calculate_progress,
+                           generate_build, is_windows)
 
 # Game versions
 DEFAULT_VERSION = 0
-VERSIONS = [
-    "GAMEID",  # 0
-]
+VERSIONS = ["DOLSDK-2001-05-22"]
 
 if len(VERSIONS) > 1:
     versions_str = ", ".join(VERSIONS[:-1]) + f" or {VERSIONS[-1]}"
@@ -119,7 +112,7 @@ if not is_windows():
 
 # Tool versions
 config.compilers_tag = "20231018"
-config.dtk_tag = "v0.6.2"
+config.dtk_tag = "v0.7.4"
 config.sjiswrap_tag = "v1.1.1"
 config.wibo_tag = "0.6.9"
 
