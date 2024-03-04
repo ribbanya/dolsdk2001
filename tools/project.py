@@ -149,6 +149,10 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     ###
     n.comment("Tooling")
 
+    # HACK: Figure out something better, especially when objdiff gets build profiles
+    profiles = ["release"]
+    # profiles = ["debug", "release"]
+
     build_path = config.out_path()
     objdiff_config_path = get_objdiff_config_path()
     build_tools_path = config.build_dir / "tools"
@@ -400,8 +404,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         if config.compilers_path and not os.path.exists(mw_path):
             sys.exit(f"Compiler {mw_path} does not exist")
 
-    # HACK: Figure out something better, especially when objdiff gets build profiles
-    profiles = ["debug", "release"]
+    rust_quiet = "RUST_LOG=warn"
 
     ###
     # Extract archives
@@ -409,7 +412,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.comment("Extract library archives")
     n.rule(
         name="ar_extract",
-        command=f"{dtk} ar extract $in -o $basedir",
+        command=f"{rust_quiet} {dtk} ar extract $in -o $basedir",
         description="EXTRACT $in",
     )
     n.newline()
@@ -417,7 +420,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.comment("Disassemble object")
     n.rule(
         name="elf_disasm",
-        command=f"{dtk} elf disasm $in $out",
+        command=f"{rust_quiet} {dtk} elf disasm $in $out",
         description="DISASM $out",
     )
     n.newline()
@@ -425,7 +428,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     n.comment("Dump DWARF info")
     n.rule(
         name="dwarf_dump",
-        command=f"{dtk} dwarf dump $in -o $out",
+        command=f"{rust_quiet} {dtk} dwarf dump $in -o $out",
         description="DWARF $out",
     )
     n.newline()
@@ -442,14 +445,12 @@ def generate_build_ninja(config: ProjectConfig) -> None:
             target_dir = get_dir("obj")
             dwarf_dir = get_dir("dwarf")
             asm_dir = get_dir("asm")
-            src_dir = get_dir("src")
 
             # HACK
             if profile == "debug":
                 archive = archive.with_stem(f"{archive.stem}D")
 
             obj_files: List[Path] = []
-            src_files: List[Path] = []
             objects: List[Object] = lib.get("objects", [])
 
             obj: Object
@@ -483,7 +484,6 @@ def generate_build_ninja(config: ProjectConfig) -> None:
 
             all_objs.extend(obj_files)
 
-
     ###
     # Helper rule for building all source files
     ###
@@ -514,14 +514,20 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     report_path = build_path / "report.json"
     n.rule(
         name="objdiff_report",
-        command=f"{objdiff_cli} report generate -p $in -o $out",
+        command=f"{rust_quiet} {objdiff_cli} report generate -p $in -o $out",
         description="REPORT",
     )
     n.build(
         inputs=objdiff_config_path.parent,
         outputs=report_path,
         rule="objdiff_report",
-        implicit=[*all_objs, objdiff_cli, objdiff_config_path, configure_script, python_lib],
+        implicit=[
+            *all_objs,
+            objdiff_cli,
+            objdiff_config_path,
+            configure_script,
+            python_lib,
+        ],
     )
 
     n.comment("Check OK")
@@ -535,7 +541,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
         inputs=report_path,
         outputs=ok_path,
         rule="check_ok",
-        implicit=[configure_script, python_lib],
+        implicit=[report_path, configure_script, python_lib],
     )
 
     # Helper tools (diff)
@@ -577,15 +583,7 @@ def generate_build_ninja(config: ProjectConfig) -> None:
     generate_objdiff_config(config)
     n.newline()
 
-    ###
-    # Default rule
-    ###
-    # TODO
-    # n.comment("Default rule")
-    # if build_config:
-    #     n.default(progress_path)
-    # else:
-    #     n.default(build_config_path)
+    n.default(ok_path)
 
     # Write build.ninja
     with open("build.ninja", "w", encoding="utf-8") as f:
@@ -615,6 +613,10 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
     }
 
     build_path = config.out_path()
+
+    # HACK: Figure out something better, especially when objdiff gets build profiles
+    profiles = ["release"]
+    # profiles = ["debug", "release"]
 
     def add_unit(build_obj: Object, lib_name: str, profile: str) -> None:
         obj_path = Path(build_obj.name)
@@ -651,8 +653,7 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
 
     for lib in config.libs or []:
         lib_name = lib["lib"]
-        # HACK
-        for profile in ["release", "debug"]:
+        for profile in profiles:
             for obj in lib.get("objects", []):
                 add_unit(obj, lib_name, profile)
 
@@ -664,14 +665,31 @@ def generate_objdiff_config(config: ProjectConfig) -> None:
 
 
 def check_ok(config: ProjectConfig) -> None:
-    with (config.out_path() / "report.json").open() as f:
+    report_path = config.out_path() / "report.json"
+    with report_path.open() as f:
         report = json.load(f)
-    if report.get("fuzzy_match_percent", 0) == 100:
+    failed_report: Dict[str, List[str]] = {}
+    for unit in report["units"]:
+        if not cast(bool, unit["complete"]):
+            continue
+        failed_unit = []
+        for function in unit["functions"]:
+            if cast(float, function["fuzzy_match_percent"]) < 100:
+                failed_unit.append(function["name"])
+        if len(failed_unit) > 0:
+            failed_report[cast(str, unit["name"])] = failed_unit
+
+    if failed_report:
+        print("\033[91mFAILED:\033[0m The following functions did not match:")
+        for unit, functions in failed_report.items():
+            print(f"{unit}:")
+            for function in functions:
+                print(f"  - {function}")
+            print()
+        exit(1)
+    else:
         print("\033[92mOK\033[0m")
         exit(0)
-    else:
-        print("\033[91mFAILED\033[0m")
-        exit(1)
 
 
 # Calculate, print and write progress to progress.json
