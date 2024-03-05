@@ -17,18 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from tools.project import (
-    Object,
-    ProjectConfig,
-    calculate_progress,
-    generate_build,
-    is_windows,
-)
+from tools.project import (Archive, Object, ProjectConfig, calculate_progress,
+                           generate_build, is_windows)
 
 # Game versions
 DEFAULT_VERSION = 0
 VERSIONS = [
-    "GAMEID",  # 0
+    "DOLSDK-2001-05-22",
 ]
 
 parser = argparse.ArgumentParser()
@@ -143,7 +138,6 @@ config.asflags = [
 config.ldflags = [
     "-fp hardware",
     "-nodefaults",
-    # "-listclosure", # Uncomment for Wii linkers
 ]
 
 # Base flags, common to most GC/Wii games.
@@ -226,14 +220,11 @@ config.warn_missing_config = True
 config.warn_missing_source = False
 config.libs = [
     {
-        "lib": "Runtime.PPCEABI.H",
+        "lib": "os",
         "mw_version": config.linker_version,
         "cflags": cflags_runtime,
         "host": False,
-        "objects": [
-            Object(NonMatching, "Runtime.PPCEABI.H/global_destructor_chain.c"),
-            Object(NonMatching, "Runtime.PPCEABI.H/__init_cpp_exceptions.cpp"),
-        ],
+        "archives": Archive("os.a"),
     },
 ]
 

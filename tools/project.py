@@ -30,6 +30,16 @@ if sys.platform == "cygwin":
     )
 
 
+class Archive:
+    def __init__(self, name: str, **options: Any) -> None:
+        self.name = name
+        self.base_name = Path(name).with_suffix("")
+        self.options: Dict[str, Any] = {
+            "source": name,
+        }
+        self.options.update(options)
+
+
 class Object:
     def __init__(self, completed: bool, name: str, **options: Any) -> None:
         self.name = name
@@ -57,6 +67,7 @@ class ProjectConfig:
         self.asm_dir: Optional[Path] = Path(
             "asm"
         )  # Override incomplete objects (for modding)
+        self.orig_dir: Optional[Path] = Path("orig")
 
         # Tooling
         self.binutils_tag: Optional[str] = None  # Git tag
