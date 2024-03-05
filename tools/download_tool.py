@@ -22,7 +22,7 @@ from typing import Callable, Dict
 from pathlib import Path
 
 
-def dtk_url(tag: str) -> str:
+def gh_url(repo: str, bin: str, tag: str) -> str:
     uname = platform.uname()
     suffix = ""
     system = uname.system.lower()
@@ -34,8 +34,15 @@ def dtk_url(tag: str) -> str:
     if arch == "amd64":
         arch = "x86_64"
 
-    repo = "https://github.com/encounter/decomp-toolkit"
-    return f"{repo}/releases/download/{tag}/dtk-{system}-{arch}{suffix}"
+    return f"https://github.com/{repo}/releases/download/{tag}/{bin}-{system}-{arch}{suffix}"
+
+
+def dtk_url(tag: str) -> str:
+    return gh_url("encounter/decomp-toolkit", "dtk", tag)
+
+
+def objdiff_cli_url(tag: str) -> str:
+    return gh_url("ribbanya/objdiff", "objdiff-cli", tag)
 
 
 def sjiswrap_url(tag: str) -> str:
@@ -57,6 +64,7 @@ TOOLS: Dict[str, Callable[[str], str]] = {
     "sjiswrap": sjiswrap_url,
     "wibo": wibo_url,
     "compilers": compilers_url,
+    "objdiff-cli": objdiff_cli_url,
 }
 
 

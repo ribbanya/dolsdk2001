@@ -12,29 +12,33 @@
 # Append --help to see available options.
 ###
 
-import sys
 import argparse
-
+import json
+import sys
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 from tools.project import (
     Object,
     ProjectConfig,
     calculate_progress,
+    check_ok,
     generate_build,
+    generate_objdiff_config,
     is_windows,
 )
 
-# Game versions
-DEFAULT_VERSION = 0
-VERSIONS = [
-    "GAMEID",  # 0
-]
+DEFAULT_REVISION = 36
+REVISIONS = {
+    36: "2001-05-22",
+    # 37: "2001-07-19",
+}
+REVISION_KEYS = list(map(str, REVISIONS.keys()))
 
-if len(VERSIONS) > 1:
-    versions_str = ", ".join(VERSIONS[:-1]) + f" or {VERSIONS[-1]}"
+if len(REVISION_KEYS) > 1:
+    revisions_str = ", ".join(REVISION_KEYS[:-1]) + f" or {REVISION_KEYS[-1]}"
 else:
-    versions_str = VERSIONS[0]
+    revisions_str = REVISION_KEYS[0]
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -44,10 +48,11 @@ parser.add_argument(
     nargs="?",
 )
 parser.add_argument(
-    "--version",
-    dest="version",
-    default=VERSIONS[DEFAULT_VERSION],
-    help=f"version to build ({versions_str})",
+    "--revision",
+    dest="revision",
+    type=int,
+    default=DEFAULT_REVISION,
+    help=f"revision to build ({revisions_str})",
 )
 parser.add_argument(
     "--build-dir",
@@ -102,39 +107,32 @@ parser.add_argument(
 args = parser.parse_args()
 
 config = ProjectConfig()
-config.version = args.version.upper()
-if config.version not in VERSIONS:
-    sys.exit(f"Invalid version '{config.version}', expected {versions_str}")
-version_num = VERSIONS.index(config.version)
+if args.revision not in REVISIONS:
+    sys.exit(f"Invalid revision '{args.revision}', expected {revisions_str}")
+config.version = f"DOLSDK-{REVISIONS[args.revision]}"
+config.archive_dir = Path("orig") / config.version
 
 # Apply arguments
 config.build_dir = args.build_dir
 config.build_dtk_path = args.build_dtk
 config.compilers_path = args.compilers
 config.debug = args.debug
-config.generate_map = args.map
 config.sjiswrap_path = args.sjiswrap
 if not is_windows():
     config.wrapper = args.wrapper
 
 # Tool versions
 config.compilers_tag = "20231018"
-config.dtk_tag = "v0.6.2"
+config.dtk_tag = "v0.7.4"
 config.sjiswrap_tag = "v1.1.1"
 config.wibo_tag = "0.6.9"
+config.objdiff_cli_tag = "v1.1.0"
 
-# Project
-config.config_path = Path("config") / config.version / "config.yml"
-config.check_sha_path = Path("config") / config.version / "build.sha1"
-config.ldflags = [
-    "-fp hardware",
-    "-nodefaults",
-    # "-listclosure", # Uncomment for Wii linkers
-]
 
 # Base flags, common to most GC/Wii games.
 # Generally leave untouched, with overrides added below.
 cflags_base = [
+    "-cwd source",
     "-nodefaults",
     "-proc gekko",
     "-align powerpc",
@@ -153,8 +151,8 @@ cflags_base = [
     "-str reuse",
     "-multibyte",  # For Wii compilers, replace with `-enc SJIS`
     "-i include",
-    f"-i build/{config.version}/include",
-    f"-DVERSION={version_num}",
+    # f"-i build/{config.version}/include",
+    f"-DDOLPHIN_REVISION={args.revision}",
 ]
 
 # Debug flags
@@ -180,27 +178,14 @@ cflags_rel = [
     "-sdata2 0",
 ]
 
-config.linker_version = "GC/1.3.2"
 
-
-# Helper function for Dolphin libraries
 def DolphinLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
     return {
         "lib": lib_name,
-        "mw_version": "GC/1.2.5n",
+        "archive": (config.archive_dir / lib_name).with_suffix(".a"),
+        "mw_version": "GC/1.2.5",
         "cflags": cflags_base,
         "host": False,
-        "objects": objects,
-    }
-
-
-# Helper function for REL script objects
-def Rel(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
-    return {
-        "lib": lib_name,
-        "mw_version": "GC/1.3.2",
-        "cflags": cflags_rel,
-        "host": True,
         "objects": objects,
     }
 
@@ -208,27 +193,63 @@ def Rel(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
 Matching = True
 NonMatching = False
 
-config.warn_missing_config = True
 config.warn_missing_source = False
 config.libs = [
-    {
-        "lib": "Runtime.PPCEABI.H",
-        "mw_version": config.linker_version,
-        "cflags": cflags_runtime,
-        "host": False,
-        "objects": [
-            Object(NonMatching, "Runtime.PPCEABI.H/global_destructor_chain.c"),
-            Object(NonMatching, "Runtime.PPCEABI.H/__init_cpp_exceptions.cpp"),
+    DolphinLib(
+        "os",
+        [
+            Object(Matching, "OSAddress.c"),
+            Object(Matching, "OSAlarm.c"),
+            Object(Matching, "OSAlloc.c"),
+            Object(Matching, "OSArena.c"),
+            Object(Matching, "OSAudioSystem.c"),
+            Object(Matching, "OSCache.c"),
+            Object(Matching, "OSContext.c"),
+            Object(Matching, "OSError.c"),
+            Object(Matching, "OSExiAd16.c"),
+            Object(Matching, "OSExi.c"),
+            Object(NonMatching, "OSFont.c"),
+            Object(NonMatching, "OSInterrupt.c"),
+            Object(Matching, "OSLink.c"),
+            Object(Matching, "OSMemory.c"),
+            Object(Matching, "OSMessage.c"),
+            Object(Matching, "OSMutex.c"),
+            Object(Matching, "OS.c"),
+            Object(Matching, "OSReset.c"),
+            Object(Matching, "OSResetSW.c"),
+            Object(Matching, "OSRtc.c"),
+            Object(Matching, "OSSerial.c"),
+            Object(Matching, "OSStopwatch.c"),
+            Object(Matching, "OSSync.c"),
+            Object(Matching, "OSThread.c"),
+            Object(Matching, "OSTime.c"),
+            Object(Matching, "OSTimer.c"),
+            Object(Matching, "OSUartExi.c"),
+            # TODO
+            # Object(Matching, "ppc_eabi_init.c"),
+            # Object(Matching, "start.c"),
+            # Object(Matching, "time.dolphin.c"),
         ],
-    },
+    ),
 ]
+
+
+# json.dump(
+#     config.libs,
+#     fp=sys.stdout,
+#     default=lambda o: str(o) if isinstance(o, Path) else o.__dict__,
+# )
 
 if args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
-elif args.mode == "progress":
-    # Print progress and write progress.json
-    config.progress_each_module = args.verbose
-    calculate_progress(config)
+elif args.mode == "objdiff":
+    generate_objdiff_config(config)
+elif args.mode == "ok":
+    check_ok(config)
+# elif args.mode == "progress":
+#     # Print progress and write progress.json
+#     config.progress_each_module = args.verbose
+#     calculate_progress(config)
 else:
     sys.exit("Unknown mode: " + args.mode)
