@@ -14,27 +14,6 @@ if sys.platform == "cygwin":
     )
 
 
-@dataclass
-class Args:
-    pass
-
-
-@dataclass
-class Archive:
-    src: Path
-    dst: Path
-    manifest: Set[Path]
-
-
-@dataclass
-class Object:
-    src: Path
-    base: Path
-    target: Path
-    dwarf: Path
-    mwcc: Path
-    cflags: List[str]
-
 
 # TODO name
 @dataclass
@@ -71,11 +50,13 @@ class ProjectConfig:
 
     @property
     def output_dir(self) -> Path:
-        return self.build_dir / self.version
+        # return self.build_dir / self.version
+        raise NotImplementedError
 
     @property
     def archive_dir(self) -> Path:
-        return self.orig_dir / self.version
+        # return self.orig_dir / self.version
+        raise NotImplementedError
 
 
 @dataclass
