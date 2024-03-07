@@ -1,7 +1,9 @@
+import io
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional, Protocol, Set, Tuple
 
+import ninja_syntax
 from ninja_syntax import Writer
 
 
@@ -13,17 +15,16 @@ class NinjaWritable(Protocol):
 @dataclass
 class Rule(NinjaWritable):
     name: str
-    command: List[str]
+    command: str
+    description: Optional[str] = field(default=None)
 
     def write(self, n: Writer):
-        n.rule(self.name, self.command)
+        n.rule(self.name, self.command, self.description)
 
-    def __eq__(self, other):
-        if isinstance(other, Rule):
-            return self.name == other.name
-        return False
+    def __eq__(self, other) -> bool:
+        return isinstance(other, Rule) and self.name == other.name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.name)
 
 
@@ -37,7 +38,7 @@ class Object(NinjaWritable):
     cflags: List[str]
 
     def write(self, n: Writer):
-        pass
+        raise NotImplementedError
 
 
 @dataclass
@@ -45,3 +46,18 @@ class Archive:
     src: Path
     dst: Path
     manifest: Set[Path]
+
+    def write(self, n: Writer):
+        raise NotImplementedError
+
+
+def generate_build(steps: Iterable[NinjaWritable]) -> None:
+    with io.StringIO() as out:
+        n = ninja_syntax.Writer(out)
+
+        for step in steps:
+            step.write(n)
+
+        out_path = Path(__file__) / "build.ninja"
+        with out_path.open("w", encoding="utf-8") as f:
+            f.write(out.getvalue())

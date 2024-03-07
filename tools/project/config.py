@@ -4,15 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional, Set, Tuple
 
-import ninja_syntax
-
-if sys.platform == "cygwin":
-    sys.exit(
-        f"Cygwin/MSYS2 is not supported."
-        f"\nPlease use native Windows Python instead."
-        f"\n(Current path: {sys.executable})"
-    )
-
+from tools.project.build import NinjaWritable
 
 
 # TODO name
@@ -47,16 +39,6 @@ class ProjectConfig:
     build_dir = Path("build")
     orig_dir = Path("orig")
     mwcc = Path("GC/1.2.5")
-
-    @property
-    def output_dir(self) -> Path:
-        # return self.build_dir / self.version
-        raise NotImplementedError
-
-    @property
-    def archive_dir(self) -> Path:
-        # return self.orig_dir / self.version
-        raise NotImplementedError
 
 
 @dataclass
@@ -127,18 +109,3 @@ class Lib:
 @dataclass
 class Tool:
     pass
-
-
-@dataclass
-class BuildConfig:
-    archives: List[Archive] = field(default_factory=list)
-    objects: List[Object] = field(default_factory=list)
-    diffs: List[Diff] = field(default_factory=list)
-    tools: List[Tool] = field(default_factory=list)
-
-
-def generate_build() -> None:
-    out = io.StringIO()
-    n = ninja_syntax.Writer(out)
-    n.variable("ninja_required_version", "1.3")
-    n.newline()

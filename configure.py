@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
 import pprint
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Set, Tuple
 
-from tools.project import BuildConfig, Lib, Profile, ProjectConfig, Unit
+from tools.project import Lib, Profile, ProjectConfig, Unit
 
 CFLAGS = [
     "-nodefaults",
@@ -49,8 +46,6 @@ PROFILES = [
 
 config = ProjectConfig(PROFILES)
 
-build = BuildConfig()
-
 
 def lib(name: str, *units: Unit) -> Lib:
     return Lib(config, name, units)
@@ -74,7 +69,7 @@ LIBS = [
 
 
 def main():
-    pprint.pp(build)
+    pass
 
 
 if __name__ == "__main__":
