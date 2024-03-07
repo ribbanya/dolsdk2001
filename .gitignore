@@ -1,19 +1,23 @@
-# Built libraries
-*.a
-
-# Build artifacts
-build/
-
-# Local binary executables
-dtk
-objdiff
+__pycache__
+.idea
+.vscode
+.ninja_*
+.mypy_cache
 *.exe
+build
+build.ninja
+objdiff.json
+orig/*/*
+!orig/*/.gitkeep
+/*.txt
+ctx.c
 
-# Compiler
-mwcc_compiler/*
+# Python
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Original files
-baserom/*
-
-# Keep .gitkeep
-!**/.gitkeep
