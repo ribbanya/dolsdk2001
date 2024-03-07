@@ -7,7 +7,6 @@ from typing import Iterable, List, Optional, Set, Tuple
 from tools.project.build import NinjaWritable
 
 
-# TODO name
 @dataclass
 class Unit:
     name: str
@@ -37,8 +36,11 @@ class ProjectConfig:
     version: Optional[str] = field(default=None)
     src_dir = Path("src")
     build_dir = Path("build")
-    orig_dir = Path("orig")
+    orig_dir: Path = field(default=Path("orig"))
     mwcc = Path("GC/1.2.5")
+
+
+x = ProjectConfig()
 
 
 @dataclass

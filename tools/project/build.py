@@ -6,6 +6,10 @@ from typing import Iterable, List, Optional, Protocol, Set, Tuple
 import ninja_syntax
 from ninja_syntax import Writer
 
+from tools.project.cli import Args
+
+from .config import Lib, ProjectConfig, Unit
+
 
 class NinjaWritable(Protocol):
     def write(self, n: Writer):
@@ -40,6 +44,10 @@ class Object(NinjaWritable):
     def write(self, n: Writer):
         raise NotImplementedError
 
+    @classmethod
+    def from_unit(cls, unit: Unit, config: ProjectConfig, args: Args):
+        raise NotImplementedError
+
 
 @dataclass
 class Archive:
@@ -49,6 +57,10 @@ class Archive:
 
     def write(self, n: Writer):
         raise NotImplementedError
+
+
+def generate_steps(args: Args, config: ProjectConfig):
+    raise NotImplementedError
 
 
 def generate_build(steps: Iterable[NinjaWritable]) -> None:
